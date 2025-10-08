@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conway's Game of Life</title>
+    <style>
+        canvas {
+            border: 0px solid black;
+        }
+    </style>
+</head>
+
+<body style="background-color: #241f31; margin : 0; padding: 0;" >
+	<div>
+		<canvas style="margin: auto;display: block;"
+				id="WorldCanvas"
+				width="100"
+				height="100">
+		</canvas>
+	</div>
+    <div style="margin: auto; width: 500;">
+		<button id="startButton">Start</button>
+		<button id="pauseButton">Pause</button>
+		<button id="restartButton">Restart</button>
+	</div>
+    <script>
+		const pattern = {
+			"R_pentomino":[[0,0], [0,-1], [-1,0], [1,-1], [0,1]]
+		}
+		const R_pen = [[0,0], [0,-1], [-1,0], [1,-1], [0,1]];
+		
+        // Initialize canvas and context
+        const canvas = document.getElementById('WorldCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Define cell size and world dimensions
+        const cellSize = 4;
+        const halfCellSize = cellSize/2;
+        const endRadianCircle = 2 * Math.PI;
+        let nRows = Math.floor(canvas.height / cellSize);
+        let nCols = Math.floor(canvas.width / cellSize);
+
+        let world = [[]];
+        let isRunning = false;
+        let animationId = null;
+        //let delay = 1;
+
+        var lastTime;
+        var requiredElapsed = 1000 / 10; // desired interval is 10fps
+
+        // Define all offset directions to check
+        const check_directions = [
+            [-1,-1], [0,-1], [1,-1],
+            [-1, 0],         [1, 0],
+            [-1, 1], [0, 1], [1, 1]];
+
+        // Function to initialize the world, setting the start chance at anything above 1 will generate an empty world
+        function createWorld(start_chance = 0.9) {
+            const world = [];
+            for (let x = 0; x < nCols; x++) {
+                world[x] = [];
+                for (let y = 0; y < nRows; y++) {
+                    world[x][y] = Math.random() > start_chance ? Math.ceil(Math.random()*360) : 0;
+                }
+            }
+            return world;
+        }
+
+        function initializeCanvas() {
+            const ratio = Math.ceil(window.devicePixelRatio);
+
+			
+            width = window.innerWidth * 0.99;
+            height = window.innerHeight * 0.9;
+
+            ctx.canvas.width  = width*ratio;
+            ctx.canvas.height = height*ratio;
+
+            canvas.style.width = `${width}px`;
+            canvas.style.height = `${height}px`;
+
+            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+
+            nRows = Math.floor(height / cellSize);
+            nCols = Math.floor(width / cellSize);
+        }
+
+        initializeCanvas();
+		world = createWorld();
+        
+
+        // Function to draw the world
+        function drawWorld() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let x = 0; x < nCols; x++) {
+                for (let y = 0; y < nRows; y++) {
+                    if (world[x][y] > 0) {
+                        
+                        //ctx.fillStyle = 'hsl(' + world[x][y] + ', 80%, 60%)';
+                        //ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+                        
+                        ctx.beginPath();
+                        ctx.arc((x * cellSize) + halfCellSize, (y * cellSize) + halfCellSize, halfCellSize, 0,  2 * Math.PI);
+                        ctx.fillStyle = 'hsl(' + world[x][y] + ', 90%, 60%)';
+                        ctx.fill();
+                        ctx.lineWidth = 0;
+                        ctx.strokeStyle = '#241f31';
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+        
+        // function to fix the modulus that has been broken in Javascript since 1995 -.-
+        function mod(x, m) {
+            return (x % m + m) % m;
+        }
+
+        function circularMean(values, max) {
+            //let m = 360/max;
+            let sin_sum = 0;
+            let cos_sum = 0;
+
+            values.forEach(v => {
+                let rad = (v * Math.PI)/180;
+                sin_sum += Math.sin(rad);
+                cos_sum += Math.cos(rad);
+            });
+
+            let mean_rad = Math.atan2(sin_sum, cos_sum);
+            let mean = mod(Math.ceil((mean_rad*180)/Math.PI), max);
+
+            if (mean <= 0) {
+                mean = 1;
+            }
+            return mean;
+        }
+
+        // Function to update the world based on Conway's rules
+        function updateWorld() {
+            const newWorld = [];
+            for (let x = 0; x < nCols; x++) {
+                newWorld[x] = [];
+                for (let y = 0; y < nRows; y++) {
+                    const neighbors = getLiveNeighbors(x, y);
+                    if (world[x][y] > 0 && (neighbors.length < 2 || neighbors.length > 3)) {
+                        newWorld[x][y] = 0; 
+                    } else if (world[x][y] === 0 && neighbors.length === 3) {
+                        newWorld[x][y] = circularMean(neighbors, 360); 
+                    } else {
+                        newWorld[x][y] = world[x][y]; 
+                    }
+                }
+            }
+            world = newWorld;
+        }
+
+        // Function to count live neighbors of a cell
+        function getLiveNeighbors(col, row) {
+            let neighbors = [];
+            check_directions.forEach(xy => {
+                const y = mod((row + xy[0]), nRows);
+                const x = mod((col + xy[1]), nCols);
+                if (world[x][y] > 0){
+                    neighbors.push(world[x][y]);
+                    //console.log(neighbors);
+                };
+                //count += world[c][r];
+            });
+            return neighbors;
+        }
+
+        // Main loop to update and draw the world
+        function mainLoop(now) {
+            if (isRunning) {
+                if (!lastTime) { lastTime = now; }
+                var elapsed = now - lastTime;
+                if (elapsed > requiredElapsed) {
+                    updateWorld();
+                    drawWorld();
+                    lastTime = now;
+                }
+                animationId = requestAnimationFrame(mainLoop);
+            }
+        }
+
+        document.getElementById('startButton')
+                  .addEventListener('click', function () {
+            if (!isRunning) {
+                isRunning = true;
+                mainLoop();
+            }
+        });
+
+        document.getElementById('pauseButton')
+                  .addEventListener('click',
+            function () {
+            isRunning = false;
+            cancelAnimationFrame(animationId);
+        });
+
+        document.getElementById('restartButton')
+                  .addEventListener('click',
+            function () {
+            isRunning = false;
+            cancelAnimationFrame(animationId);
+			initializeCanvas();
+            world = createWorld(0.5);
+            drawWorld();
+        });
+
+		// add a random pattern
+        function addPattern(x_raw, y_raw) {
+            R_pen.forEach(xy => {
+                const y = mod((y_raw + xy[1]), nRows);
+                const x = mod((x_raw + xy[0]), nCols);
+				console.log(x & y)
+                world[x][y] = Math.ceil(Math.random()*360);
+            });
+			drawWorld();
+        }
+
+		// flip a cell from dead to alive
+		function changeCell(x, y) {
+			if (world[x][y] > 0) {
+				world[x][y] = 0;
+			}
+			else {
+				world[x][y] = Math.ceil(Math.random()*360);
+			}
+			if (!isRunning) {
+				drawWorld();
+			}
+		}
+		
+		// detect a click event
+		function handleClick(event) {
+			let rect = canvas.getBoundingClientRect();
+			let x = Math.round((event.clientX - rect.left) / cellSize);
+			let y = Math.round((event.clientY - rect.top) / cellSize);
+			if (x >= 0 && x < nCols && y >= 0 && y < nRows) {
+				addPattern(x, y)
+				//changeCell(x, y);
+			} 
+		}
+		canvas.addEventListener('click', handleClick);
+		
+    </script>
+</body>
+
+</html>
