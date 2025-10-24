@@ -8,28 +8,42 @@
     <style>
         canvas {
             border: 0px solid black;
+			margin: auto; 
+			display: block;
         }
+		body {
+			font-family: Arial, sans-serif;
+			background-color: #241f31;
+			margin : 0;
+			padding: 0;
+		}
+		button {
+		  width:30px;
+		  height:30px;
+		  background-color: ##e6e6e8;
+		  margin: 3px 0;
+		  font-weight: bold;
+		  font-size: 20;
+		}
     </style>
 </head>
 
-<body style="background-color: #241f31; margin : 0; padding: 0;" >
+<body>
+	<div id="menuBar" style="margin:auto; background:#8270b0; display: flex; justify-content: center;">
+		<button id="pausePlayButton">&#x23F5</button>
+		<button id="restartButton">&#x2630</button>
+		<button id="stepButton">⏯</button>
+	</div>
 	<div>
-		<canvas style="margin: auto;display: block;"
-				id="WorldCanvas"
+		<canvas id="WorldCanvas"
 				width="100"
 				height="100">
 		</canvas>
 	</div>
-    <div style="margin: auto; width: 500;">
-		<button id="startButton">Start</button>
-		<button id="pauseButton">Pause</button>
-		<button id="restartButton">Restart</button>
-	</div>
+    
     <script>
-		const pattern = {
-			"R_pentomino":[[0,0], [0,-1], [-1,0], [1,-1], [0,1]]
-		}
-		const R_pen = [[0,0], [0,-1], [-1,0], [1,-1], [0,1]];
+		
+		// CONSTANTS & GLOBALS
 		
         // Initialize canvas and context
         const canvas = document.getElementById('WorldCanvas');
@@ -45,16 +59,32 @@
         let world = [[]];
         let isRunning = false;
         let animationId = null;
-        //let delay = 1;
-
-        var lastTime;
-        var requiredElapsed = 1000 / 10; // desired interval is 10fps
+		let lastTime;
+        let requiredElapsed = 1000 / 100; // desired interval is 10fps
+		
+		// Patterns that can be drawn. Patterns have a name (R_pentomino), a direction from 0-7 (generated) and a list of coordinates
+		let patternLibrary = {
+			"R_pentomino":		[[[ 0, 0], [ 0,-1], [-1, 0], [ 1,-1], [ 0, 1]]],
+			"Acorn":			[[[ 0, 0], [-2, 1], [-2,-1], [-3,-1], [ 1,-1], [ 2,-1], [ 3,-1]]],
+			"Gliders":			[[[-1, 1], [-2, 1], [-2, 0], [-2,-1], [ 1,-1], [ 2, 1], [ 2, 0], [ 2,-1]]],
+			"J_dot":			[[[ 0, 0], [ 0, 1], [ 0, 2], [ 0,-1], [-1, 2], [ 1, 2], [ 2, 2], [ 2,-1], [-1,-2], [-2,-1]]],
+			"Bunnies":			[[[-1, 0], [-2, 0], [-3, 0], [-3, 1], [-2,-1], [ 2, 0], [ 1, 1], [ 2, 1], [ 3, 1] ]],
+			"Time_bomb": 		[[[-6, -2], [6, -2], [7, -2], [-7, -1], [-5, -1], [0, -1], [7, -1], [0, 0], [5, 0], [-5, 1], [-2, 1], [2, 1], [5, 1], [-5, 2], [-4, 2], [3, 2], [-4, 3]]],
+			"Infinite_squares": [[[3, -2], [1, -1], [3, -1], [4, -1], [1, 0], [3, 0], [1, 1], [-1, 2], [-3, 3], [-1, 3]]],
+			"Glider_gun_30": 	[[[7, -4], [5, -3], [7, -3], [-5, -2], [-4, -2], [3, -2], [4, -2], [17, -2], [18, -2], [-6, -1], [-2, -1], [3, -1], [4, -1], [17, -1], [18, -1], [-17, 0], [-16, 0], [-7, 0], [-1, 0], [3, 0], [4, 0], [-17, 1], [-16, 1], [-7, 1], [-3, 1], [-1, 1], [0, 1], [5, 1], [7, 1], [-7, 2], [-1, 2], [7, 2], [-6, 3], [-2, 3], [-5, 4], [-4, 4]]],
+			"Rake":				[[[-8, -8], [-7, -8], [-6, -8], [6, -8], [7, -8], [8, -8], [-9, -7], [-5, -7], [5, -7], [9, -7], [-10, -6], [-9, -6], [-4, -6], [4, -6], [9, -6], [10, -6], [-11, -5], [-9, -5], [-7, -5], [-6, -5], [-4, -5], [-3, -5], [3, -5], [4, -5], [6, -5], [7, -5], [9, -5], [11, -5], [-12, -4], [-11, -4], [-9, -4], [-4, -4], [-2, -4], [-1, -4], [1, -4], [2, -4], [4, -4], [9, -4], [11, -4], [12, -4], [-13, -3], [-8, -3], [-4, -3], [-1, -3], [1, -3], [4, -3], [8, -3], [13, -3], [-1, -2], [1, -2], [-13, -1], [-12, -1], [-4, -1], [-3, -1], [-1, -1], [1, -1], [3, -1], [4, -1], [12, -1], [13, -1], [-1, 0], [1, 0], [-7, 1], [-6, 1], [-5, 1], [5, 1], [6, 1], [7, 1], [-7, 2], [-3, 2], [7, 2], [-7, 3], [-5, 3], [0, 3], [1, 3], [2, 3], [-1, 4], [2, 4], [7, 4], [8, 4], [2, 5], [-2, 6], [2, 6], [-2, 7], [2, 7], [2, 8], [-1, 9], [1, 9]]]
+			//"Glider_gun_24": 	[[[-8, -9], [-8, -8], [-7, -8], [-6, -8], [8, -8], [9, -8], [-5, -7], [5, -7], [6, -7], [9, -7], [-6, -6], [-5, -6], [5, -6], [6, -6], [8, -6], [8, -5], [9, -5], [4, -4], [5, -4], [6, -4], [8, -4], [-6, -3], [-2, -3], [-1, -3], [4, -3], [5, -3], [6, -3], [8, -3], [-7, -2], [-3, -2], [-2, -2], [3, -2], [7, -2], [8, -2], [10, -2], [-7, -1], [4, -1], [5, -1], [9, -1], [10, -1], [-6, 0], [6, 0], [7, 0], [-5, 1], [-4, 1], [-3, 1], [-2, 1], [-1, 1], [6, 1], [-4, 2], [-3, 2], [-2, 2], [8, 2], [-3, 3], [2, 3], [3, 3], [7, 3], [8, 3], [2, 4], [4, 4], [4, 5], [4, 6], [5, 6], [-8, 8], [-7, 8], [-6, 8], [0, 8], [-9, 9], [-8, 9], [-7, 9], [1, 9], [-1, 10], [0, 10], [1, 10]]]
+		};
+		let pattern_names = [];
 
         // Define all offset directions to check
         const check_directions = [
             [-1,-1], [0,-1], [1,-1],
             [-1, 0],         [1, 0],
             [-1, 1], [0, 1], [1, 1]];
+
+
+		// INITIALIZATION FUNCTIONS
 
         // Function to initialize the world, setting the start chance at anything above 1 will generate an empty world
         function createWorld(start_chance = 0.9) {
@@ -67,58 +97,70 @@
             }
             return world;
         }
-
+		
+		// Set up the Canvas Size, keeping track of the device's pixel ratio
         function initializeCanvas() {
             const ratio = Math.ceil(window.devicePixelRatio);
-
-			
-            width = window.innerWidth * 0.99;
-            height = window.innerHeight * 0.9;
-
+			const menu_height =  document.getElementById('menuBar').getBoundingClientRect().height;
+			console.log(menu_height);
+            width = window.innerWidth * 1;
+            height = (window.innerHeight - menu_height) * 1;
             ctx.canvas.width  = width*ratio;
             ctx.canvas.height = height*ratio;
-
             canvas.style.width = `${width}px`;
             canvas.style.height = `${height}px`;
-
             ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-
             nRows = Math.floor(height / cellSize);
             nCols = Math.floor(width / cellSize);
         }
-
-        initializeCanvas();
-		world = createWorld();
-        
-
-        // Function to draw the world
-        function drawWorld() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            for (let x = 0; x < nCols; x++) {
-                for (let y = 0; y < nRows; y++) {
-                    if (world[x][y] > 0) {
-                        
-                        //ctx.fillStyle = 'hsl(' + world[x][y] + ', 80%, 60%)';
-                        //ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-                        
-                        ctx.beginPath();
-                        ctx.arc((x * cellSize) + halfCellSize, (y * cellSize) + halfCellSize, halfCellSize, 0,  2 * Math.PI);
-                        ctx.fillStyle = 'hsl(' + world[x][y] + ', 90%, 60%)';
-                        ctx.fill();
-                        ctx.lineWidth = 0;
-                        ctx.strokeStyle = '#241f31';
-                        ctx.stroke();
-                    }
-                }
-            }
-        }
-        
-        // function to fix the modulus that has been broken in Javascript since 1995 -.-
+		
+		function reversePattern(pattern) {
+			var reversed_pattern = []
+			pattern.forEach( xy => {
+				reversed_pattern.push([xy[1], xy[0]]);
+			});
+			return reversed_pattern;
+		}
+		
+		function turnPattern(pattern) {
+			var turned_pattern = []
+			pattern.forEach( xy => {
+				turned_pattern.push([xy[1]*-1, xy[0]]);
+			});
+			return turned_pattern;
+		}
+		
+		function generateAllPatternDirections() {
+			for (let pattern in patternLibrary) {
+				pattern_names.push(pattern);
+				
+				let new_pattern_list = [
+					patternLibrary[pattern][0],
+					reversePattern(patternLibrary[pattern][0])];
+				
+				for (let i = 0; i < 3; i++) {
+					let last_pattern = new_pattern_list[new_pattern_list.length - 2];
+					let last_rev_pattern = new_pattern_list[new_pattern_list.length - 1];
+					new_pattern_list.push(turnPattern(last_pattern));
+					new_pattern_list.push(turnPattern(last_rev_pattern));
+				}
+				patternLibrary[pattern] = new_pattern_list;
+				//console.log(new_pattern_list);
+				//console.log(p);
+				//console.log(pattern[p]);
+			}
+		}
+		
+		
+		// SUPPORTING FUNCTIONS
+		
+		// function to fix the modulus that has been broken in Javascript since 1995 -.-
         function mod(x, m) {
             return (x % m + m) % m;
         }
-
-        function circularMean(values, max) {
+		
+		// Calculate the circular Mean out of a list of values
+		function circularMean(values, max) {
             //let m = 360/max;
             let sin_sum = 0;
             let cos_sum = 0;
@@ -136,6 +178,67 @@
                 mean = 1;
             }
             return mean;
+        }
+		
+		// Function to count live neighbors of a cell
+        function getLiveNeighbors(col, row) {
+            let neighbors = [];
+            check_directions.forEach(xy => {
+                const y = mod((row + xy[0]), nRows);
+                const x = mod((col + xy[1]), nCols);
+                if (world[x][y] > 0){
+                    neighbors.push(world[x][y]);
+                };
+            });
+            return neighbors;
+        }
+		
+		// add a random pattern
+        function addPattern(x_raw, y_raw) {
+			let pattern_choice = pattern_names[Math.floor(Math.random() * pattern_names.length)]
+			let pattern_variant = Math.floor(Math.random()*8);
+            patternLibrary[pattern_choice][pattern_variant].forEach(xy => {
+                const y = mod((y_raw + xy[1]), nRows);
+                const x = mod((x_raw + xy[0]), nCols);
+                world[x][y] = Math.ceil(Math.random()*360);
+            });
+			if (!isRunning) {
+				drawWorld();
+			}
+        }
+
+		// flip a cell from dead to alive
+		function changeCell(x, y) {
+			if (world[x][y] > 0) {
+				world[x][y] = 0;
+			}
+			else {
+				world[x][y] = Math.ceil(Math.random()*360);
+			}
+			if (!isRunning) {
+				drawWorld();
+			}
+		}
+		
+        
+		// MAIN LOOP FUNCTIONS
+
+        // Function to draw the alive cells in the world
+        function drawWorld() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let x = 0; x < nCols; x++) {
+                for (let y = 0; y < nRows; y++) {
+                    if (world[x][y] > 0) {
+                        ctx.beginPath();
+                        ctx.arc((x * cellSize) + halfCellSize, (y * cellSize) + halfCellSize, halfCellSize, 0,  2 * Math.PI);
+                        ctx.fillStyle = 'hsl(' + world[x][y] + ', 90%, 60%)';
+                        ctx.fill();
+                        ctx.lineWidth = 0;
+                        ctx.strokeStyle = '#241f31';
+                        ctx.stroke();
+                    }
+                }
+            }
         }
 
         // Function to update the world based on Conway's rules
@@ -156,22 +259,7 @@
             }
             world = newWorld;
         }
-
-        // Function to count live neighbors of a cell
-        function getLiveNeighbors(col, row) {
-            let neighbors = [];
-            check_directions.forEach(xy => {
-                const y = mod((row + xy[0]), nRows);
-                const x = mod((col + xy[1]), nCols);
-                if (world[x][y] > 0){
-                    neighbors.push(world[x][y]);
-                    //console.log(neighbors);
-                };
-                //count += world[c][r];
-            });
-            return neighbors;
-        }
-
+		
         // Main loop to update and draw the world
         function mainLoop(now) {
             if (isRunning) {
@@ -185,20 +273,30 @@
                 animationId = requestAnimationFrame(mainLoop);
             }
         }
+		
+		
+		// INITIALIZE WORLD AND CANVAS
+		
+		generateAllPatternDirections();
+		initializeCanvas();
+		world = createWorld();
 
-        document.getElementById('startButton')
-                  .addEventListener('click', function () {
-            if (!isRunning) {
-                isRunning = true;
-                mainLoop();
-            }
-        });
 
-        document.getElementById('pauseButton')
+		// SET-UP EVENT LISTENERS
+				
+        document.getElementById('pausePlayButton')
                   .addEventListener('click',
             function () {
-            isRunning = false;
-            cancelAnimationFrame(animationId);
+			if (!isRunning) {
+				isRunning = true;
+                mainLoop();
+				document.getElementById("pausePlayButton").textContent="⏸"
+            }
+			else {
+				isRunning = false;
+				cancelAnimationFrame(animationId);
+				document.getElementById("pausePlayButton").textContent="⏵"
+			}
         });
 
         document.getElementById('restartButton')
@@ -206,46 +304,29 @@
             function () {
             isRunning = false;
             cancelAnimationFrame(animationId);
+			document.getElementById("pausePlayButton").textContent="⏵"
 			initializeCanvas();
-            world = createWorld(0.5);
+            world = createWorld(1);
             drawWorld();
         });
-
-		// add a random pattern
-        function addPattern(x_raw, y_raw) {
-            R_pen.forEach(xy => {
-                const y = mod((y_raw + xy[1]), nRows);
-                const x = mod((x_raw + xy[0]), nCols);
-				console.log(x & y)
-                world[x][y] = Math.ceil(Math.random()*360);
-            });
-			drawWorld();
-        }
-
-		// flip a cell from dead to alive
-		function changeCell(x, y) {
-			if (world[x][y] > 0) {
-				world[x][y] = 0;
-			}
-			else {
-				world[x][y] = Math.ceil(Math.random()*360);
-			}
-			if (!isRunning) {
-				drawWorld();
-			}
-		}
 		
-		// detect a click event
-		function handleClick(event) {
+		document.getElementById('stepButton')
+                  .addEventListener('click',
+            function () {
+			updateWorld();
+            drawWorld();
+        });
+		
+		// Canvas click event with translation to world coordinates (not canvas coordinates)
+		canvas.addEventListener('click', function (event) {
 			let rect = canvas.getBoundingClientRect();
-			let x = Math.round((event.clientX - rect.left) / cellSize);
-			let y = Math.round((event.clientY - rect.top) / cellSize);
+			let x = Math.floor((event.clientX - rect.left) / cellSize);
+			let y = Math.floor((event.clientY - rect.top) / cellSize);
 			if (x >= 0 && x < nCols && y >= 0 && y < nRows) {
 				addPattern(x, y)
 				//changeCell(x, y);
 			} 
-		}
-		canvas.addEventListener('click', handleClick);
+		});
 		
     </script>
 </body>
