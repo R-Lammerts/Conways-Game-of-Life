@@ -18,21 +18,59 @@
 			padding: 0;
 		}
 		button {
-		  width:30px;
+		  width:90px;
 		  height:30px;
 		  background-color: #e6e6e8;
 		  margin: 3px 0;
 		  font-weight: bold;
 		  font-size: 20;
 		}
+
+
+        /* The container <div> - needed to position the dropdown content */
+        .select {
+        position: relative;
+        display: inline-block;
+        }
+
+        /* Dropdown Content (Hidden by Default) */
+        .select-menu {
+        display: none;
+        position: absolute;
+        background-color: #f1f1f1;
+        min-width: 160px;
+        box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+        z-index: 1;
+        }
+
+        /* Links inside the dropdown */
+        .select-menu a {
+        color: black;
+        padding: 12px 16px;
+        text-decoration: none;
+        display: block;
+        }
+
+        /* Change color of dropdown links on hover */
+        .select-content a:hover {background-color: #ddd;}
+
     </style>
 </head>
 
 <body>
 	<div id="menuBar" style="margin:auto; background:#8270b0; display: flex; justify-content: center;">
-		<button id="pausePlayButton">&#x23F5</button>
-		<button id="restartButton">&#x2630</button>
-		<button id="stepButton">⏯</button>
+		<button id="pausePlayButton">Play</button>
+		<button id="clearButton">Clear</button>
+        <button id="regenButton">Regenerate</button>
+        <div class="select">
+        <button id="selectButton">Select</button>
+        <div id="selection-menu" class="select-menu">
+            <a href="#">Link 1</a>
+            <a href="#">Link 2</a>
+            <a href="#">https://www.w3schools.com/howto/howto_js_dropdown.asp</a>
+        </div>
+        </div>
+        <input type="range" id="speed" name="speed" min="1" max="100" value="20"/>
 	</div>
 	<div>
 		<canvas id="WorldCanvas"
@@ -61,6 +99,82 @@
         let animationId = null;
 		let lastTime;
         let requiredElapsed = 1000 / 100; // desired interval is 10fps
+
+        class Pattern {
+            constructor(name, width, height, rle) {
+                this.name = name;
+                this.width = 0;
+                this.height = 0;
+                this.rle = rle;
+                this.pattern = [];
+                this.pattern_directions = [];
+            }
+
+            translateRle() {
+                const regex = /(?<num>[0-9]*)(?<operation>[bo\$])/g;
+                let matches = this.rle.matchAll(regex);
+                let x = 0;
+                let y = 0;
+                let x_max = 0;
+                matches.forEach( match => {
+                    let n = Number(match.groups["num"]);
+                    let operation = match.groups["operation"];
+                    if (n === 0) { n = 1;}
+                    for (let i = 0; i < n; i++) {
+                        if (operation === "o") {
+                            this.pattern.push([x,y]);
+                        }
+                        else if (operation === "$") {
+                            y += 1;
+                            x = -1;
+                        }
+                        if (x > x_max) { x_max = x;}
+                        x += 1;
+                    }
+                });
+                this.height = y;
+                this.width = x_max;
+            }
+            
+            reversePattern(pattern) {
+                var reversed_pattern = []
+                pattern.forEach( xy => {
+                    reversed_pattern.push([xy[1], xy[0]]);
+                });
+                return reversed_pattern;
+            }
+            
+            turnPattern(pattern) {
+                var turned_pattern = []
+                pattern.forEach( xy => {
+                    turned_pattern.push([xy[1]*-1, xy[0]]);
+                });
+                return turned_pattern;
+            }
+            
+            centerPattern() {
+                const rx = math.floor();
+                let centered_pattern = [];
+                this.pattern.forEach(coord => {
+                    
+                });
+            }
+
+            generateAllPatternDirections() {
+                let new_pattern_list = [
+                    patternLibrary[pattern][0],
+                    reversePattern(patternLibrary[pattern][0])];
+                
+                for (let i = 0; i < 3; i++) {
+                    let last_pattern = new_pattern_list[new_pattern_list.length - 2];
+                    let last_rev_pattern = new_pattern_list[new_pattern_list.length - 1];
+                    new_pattern_list.push(turnPattern(last_pattern));
+                    new_pattern_list.push(turnPattern(last_rev_pattern));
+                }
+                patternLibrary[pattern] = new_pattern_list;
+            }
+            
+        }
 		
 		// Patterns that can be drawn. Patterns have a name (R_pentomino), a direction from 0-7 (generated) and a list of coordinates
 		let patternLibrary = {
@@ -87,7 +201,7 @@
 		// INITIALIZATION FUNCTIONS
 
         // Function to initialize the world, setting the start chance at anything above 1 will generate an empty world
-        function createWorld(start_chance = 0.9) {
+        function createWorld(start_chance = 1) {
             const world = [];
             for (let x = 0; x < nCols; x++) {
                 world[x] = [];
@@ -112,45 +226,7 @@
             ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
             nRows = Math.floor(height / cellSize);
             nCols = Math.floor(width / cellSize);
-        }
-		
-		function reversePattern(pattern) {
-			var reversed_pattern = []
-			pattern.forEach( xy => {
-				reversed_pattern.push([xy[1], xy[0]]);
-			});
-			return reversed_pattern;
-		}
-		
-		function turnPattern(pattern) {
-			var turned_pattern = []
-			pattern.forEach( xy => {
-				turned_pattern.push([xy[1]*-1, xy[0]]);
-			});
-			return turned_pattern;
-		}
-		
-		function generateAllPatternDirections() {
-			for (let pattern in patternLibrary) {
-				pattern_names.push(pattern);
-				
-				let new_pattern_list = [
-					patternLibrary[pattern][0],
-					reversePattern(patternLibrary[pattern][0])];
-				
-				for (let i = 0; i < 3; i++) {
-					let last_pattern = new_pattern_list[new_pattern_list.length - 2];
-					let last_rev_pattern = new_pattern_list[new_pattern_list.length - 1];
-					new_pattern_list.push(turnPattern(last_pattern));
-					new_pattern_list.push(turnPattern(last_rev_pattern));
-				}
-				patternLibrary[pattern] = new_pattern_list;
-				//console.log(new_pattern_list);
-				//console.log(p);
-				//console.log(pattern[p]);
-			}
-		}
-		
+        }		
 		
 		// SUPPORTING FUNCTIONS
 		
@@ -277,9 +353,11 @@
 		
 		// INITIALIZE WORLD AND CANVAS
 		
-		generateAllPatternDirections();
+        let p =  new Pattern("test", 3,3, "bo$2bo$3o!");
+        p.translateRle();
+		//generateAllPatternDirections();
 		initializeCanvas();
-		world = createWorld();
+		world = createWorld(1);
 
 
 		// SET-UP EVENT LISTENERS
@@ -290,33 +368,41 @@
 			if (!isRunning) {
 				isRunning = true;
                 mainLoop();
-				document.getElementById("pausePlayButton").textContent="⏸"
+				document.getElementById("pausePlayButton").textContent="Pauze";
             }
 			else {
 				isRunning = false;
 				cancelAnimationFrame(animationId);
-				document.getElementById("pausePlayButton").textContent="⏵"
+				document.getElementById("pausePlayButton").textContent="Play";
 			}
         });
 
-        document.getElementById('restartButton')
+        document.getElementById('clearButton')
                   .addEventListener('click',
             function () {
             isRunning = false;
             cancelAnimationFrame(animationId);
-			document.getElementById("pausePlayButton").textContent="⏵"
+			document.getElementById("pausePlayButton").textContent="Play"
 			initializeCanvas();
             world = createWorld(1);
             drawWorld();
         });
-		
-		document.getElementById('stepButton')
+
+        document.getElementById('regenButton')
                   .addEventListener('click',
             function () {
-			updateWorld();
+            isRunning = false;
+            cancelAnimationFrame(animationId);
+			document.getElementById("pausePlayButton").textContent="Play";
+			initializeCanvas();
+            world = createWorld(0.7);
             drawWorld();
         });
 		
+        document.getElementById("speed").oninput = function () {
+                requiredElapsed = 1000 / this.value;
+            };
+
 		// Canvas click event with translation to world coordinates (not canvas coordinates)
 		canvas.addEventListener('click', function (event) {
 			let rect = canvas.getBoundingClientRect();
